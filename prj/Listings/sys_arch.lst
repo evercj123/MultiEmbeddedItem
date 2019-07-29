@@ -1,0 +1,268 @@
+L 1 "..\lwip\src\arch\sys_arch.c"
+N/*
+N * Copyright (c) 2001, Swedish Institute of Computer Science.
+N * All rights reserved. 
+N *
+N * Redistribution and use in source and binary forms, with or without 
+N * modification, are permitted provided that the following conditions 
+N * are met: 
+N * 1. Redistributions of source code must retain the above copyright 
+N *    notice, this list of conditions and the following disclaimer. 
+N * 2. Redistributions in binary form must reproduce the above copyright 
+N *    notice, this list of conditions and the following disclaimer in the 
+N *    documentation and/or other materials provided with the distribution. 
+N * 3. Neither the name of the Institute nor the names of its contributors 
+N *    may be used to endorse or promote products derived from this software 
+N *    without specific prior written permission. 
+N *
+N * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND 
+N * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+N * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+N * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE 
+N * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+N * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS 
+N * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+N * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+N * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
+N * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+N * SUCH DAMAGE. 
+N *
+N * This file is part of the lwIP TCP/IP stack.
+N * 
+N * Author: Adam Dunkels <adam@sics.se>
+N *
+N * $Id: sys_arch.c,v 1.1.1.1 2003/05/17 05:06:56 chenyu Exp $
+N */
+N#if 0
+S#include "../include/lwip/debug.h"
+S
+S#include "../include/lwip/def.h"
+S#include "../include/lwip/sys.h"
+S#include "../include/lwip/mem.h"
+S#include "err.h"
+S//yangye 2003-1-22
+S#include "sys_arch.h" 
+S//yangye 2003-1-27
+S//notice: we use OSTaskQuery in sys_arch_timeouts() !
+S//#include "ucos_ii.h"
+S//#include "os_cfg.h"
+S
+S
+Sconst void * const pvNullPointer;
+S
+Sstatic OS_MEM *pQueueMem;
+S
+Sstatic char pcQueueMemoryPool[MAX_QUEUES * sizeof(TQ_DESCR) ];
+S
+S//yangye 2003-1-27
+Sstruct sys_timeouts lwip_timeouts[LWIP_TASK_MAX];
+Sstruct sys_timeouts null_timeouts;
+S
+Sstatic OS_TCB curr_task_pcb;
+S
+SOS_STK LWIP_TASK_STK[LWIP_TASK_MAX][LWIP_STK_SIZE];
+Su8_t curr_prio_offset;
+S
+S/*-----------------------------------------------------------------------------------*/
+Ssys_mbox_t sys_mbox_new(int size)
+S{
+S    u8_t       ucErr;
+S    PQ_DESCR    pQDesc;
+S    
+S    pQDesc = OSMemGet( pQueueMem, &ucErr );
+S    if( ucErr == OS_NO_ERR ) {   
+S        pQDesc->pQ = OSQCreate( &(pQDesc->pvQEntries[0]), MAX_QUEUE_ENTRIES );       
+S        if( pQDesc->pQ != NULL ) {
+S            return pQDesc;
+S        }
+S    } 
+S    return SYS_MBOX_NULL;
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+Svoid
+Ssys_mbox_free(sys_mbox_t mbox)
+S{
+S    u8_t     ucErr;
+S    
+S    //clear OSQ EVENT
+S    OSQFlush( mbox->pQ );
+S    //del OSQ EVENT
+S    (void)OSQDel( mbox->pQ, OS_DEL_NO_PEND, &ucErr);
+S    //put mem back to mem queue
+S    ucErr = OSMemPut( pQueueMem, mbox );
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+Svoid
+Ssys_mbox_post(sys_mbox_t mbox, void *data)
+S{
+S    if( !data ) 
+S	data = (void*)&pvNullPointer;
+S    (void)OSQPost( mbox->pQ, data);
+S}
+Serr_t sys_mbox_trypost(sys_mbox_t mbox, void *msg)
+S{
+S  sys_mbox_post(mbox,msg);
+S  return ERR_OK;
+S}
+S/*-----------------------------------------------------------------------------------*/
+Su32_t
+Ssys_arch_mbox_fetch(sys_mbox_t mbox, void **data, u32_t timeout)
+S{
+S    u8_t     ucErr;
+S    u16_t ucos_timeout;
+S  //yangye 2003-1-27
+S  //in lwip ,timeout is  millisecond 
+S  //in ucosII ,timeout is timer  tick! 
+S  //chang timeout from millisecond to ucos tick
+S  ucos_timeout = 0;
+S  if(timeout != 0){
+S  ucos_timeout = (timeout * OS_TICKS_PER_SEC)/1000;
+S  if(ucos_timeout < 1)
+S  	ucos_timeout = 1;
+S  else if(ucos_timeout > 65535)
+S  	ucos_timeout = 65535;
+S  }  
+S    
+S  //yangye 2003-1-29
+S  //it is very importent!!!! 
+S  //sometimes lwip calls sys_mbox_fetch(mbox,NULL)
+S  //it is dangrous to return (void *) to NULL ! (from OSQPend())
+S  if(data != NULL){
+S    *data = OSQPend( mbox->pQ, (u16_t)ucos_timeout, &ucErr );        
+S  }else{
+S    //just discard return value if data==NULL
+S    OSQPend(mbox->pQ,(u16_t)ucos_timeout,&ucErr);
+S  }
+S    
+S  if( ucErr == OS_TIMEOUT ) {
+S        timeout = SYS_ARCH_TIMEOUT;
+S    } else {
+S      if(*data == (void*)&pvNullPointer ) 
+S	  *data = NULL;
+S      timeout = 1;
+S    }
+S  return timeout;
+S}
+S
+Su32_t sys_arch_mbox_tryfetch(sys_mbox_t mbox, void **msg)
+S{
+S return sys_arch_mbox_fetch(mbox,msg,1);
+S}
+S/*-----------------------------------------------------------------------------------*/
+S
+Ssys_sem_t sys_sem_new(u8_t count)
+S{
+S    sys_sem_t pSem;
+S    pSem = OSSemCreate((u16_t)count );
+S    return pSem;
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+S
+Svoid sys_sem_signal(sys_sem_t sem)
+S{
+S    u8_t     ucErr;
+S    ucErr = OSSemPost((OS_EVENT *)sem );
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+S//yangye 2003-1-25
+Su32_t sys_arch_sem_wait(sys_sem_t sem, u32_t timeout)
+S{
+S  u8_t err;
+S  u32_t ucos_timeout;
+S  //yangye 2003-1-27
+S  //in lwip ,timeout is  millisecond 
+S  //in ucosII ,timeout is timer  tick! 
+S  //chang timeout from millisecond to ucos tick
+S  ucos_timeout = 0;
+S  if(timeout != 0){
+S  ucos_timeout = (timeout * OS_TICKS_PER_SEC)/1000;
+S  if(ucos_timeout < 1)
+S  	ucos_timeout = 1;
+S  else if(ucos_timeout > 65535)
+S  	ucos_timeout = 65535;
+S  }
+S  	
+S  OSSemPend ((OS_EVENT *)sem,(u16_t)ucos_timeout, (u8_t *)&err);
+S  //should not return 0 when wait time is 0, only when timeout!
+S  //see sys_arch.txt in lwip/doc 
+S  if(err == OS_TIMEOUT)
+S  	return SYS_ARCH_TIMEOUT;
+S  else
+S  	return 1;
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+S
+Svoid sys_sem_free(sys_sem_t sem)
+S{
+S    u8_t     ucErr;
+S    (void)OSSemDel((OS_EVENT *)sem, OS_DEL_NO_PEND, &ucErr );
+S}
+S
+S/*-----------------------------------------------------------------------------------*/
+Svoid sys_init(void)
+S{
+S    u8_t i;
+S    //this func is called first in lwip task!
+S    u8_t   ucErr;
+S    //init mem used by sys_mbox_t
+S    //use ucosII functions
+S    pQueueMem = OSMemCreate( (void*)pcQueueMemoryPool, MAX_QUEUES, sizeof(TQ_DESCR), &ucErr );
+S    //init lwip task prio offset
+S    curr_prio_offset = 0;
+S    //init lwip_timeouts for every lwip task
+S    for(i=0;i<LWIP_TASK_MAX;i++){
+S    	lwip_timeouts[i].next = NULL;
+S    }
+S}
+S/*-----------------------------------------------------------------------------------*/
+S
+S/*----------------------------------------------------------------------*/
+Sstruct sys_timeouts * sys_arch_timeouts(void)
+S{
+S  u8_t curr_prio;
+S  s16_t err,offset;
+S 
+S    
+S  null_timeouts.next = NULL;
+S  //get current task prio
+S  err = OSTaskQuery(OS_PRIO_SELF,&curr_task_pcb);
+S  curr_prio = curr_task_pcb.OSTCBPrio;
+S  
+S  offset = curr_prio - LWIP_START_PRIO;
+S  //not called by a lwip task ,return timeouts->NULL
+S  if(offset < 0 || offset >= LWIP_TASK_MAX)
+S  {
+S    return &null_timeouts;
+S  }
+S
+S  return &lwip_timeouts[offset];
+S}
+S/*------------------------------------------------------------------------*/
+S
+S
+Ssys_thread_t sys_thread_new(char *name, void (* thread)(void *arg), void *arg, int stacksize, int prio)
+S//sys_thread_t sys_thread_new(void (* function)(void *arg), void *arg, int prio)
+S{
+S
+S  if(curr_prio_offset < LWIP_TASK_MAX){
+S  
+S    OSTaskCreate(thread, (void *)arg, &LWIP_TASK_STK[curr_prio_offset][LWIP_STK_SIZE-1],LWIP_START_PRIO+curr_prio_offset );
+S  //  OSTaskCreate(function, (void *)0x1111, &LWIP_TASK_STK[curr_prio_offset][LWIP_STK_SIZE-1],prio );
+S    curr_prio_offset++; 
+S  } else {
+S   // Uart_Printf(" lwip task prio out of range ! error! ");
+S  }
+S  return prio;
+S}
+N#endif
+N
+N
+N
+N
+N
+N

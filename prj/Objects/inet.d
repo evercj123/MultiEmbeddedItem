@@ -1,0 +1,11 @@
+.\objects\inet.o: ..\lwip\src\core\ipv4\inet.c
+.\objects\inet.o: ..\lwip\src\include\lwip/opt.h
+.\objects\inet.o: ..\lwip\src\arch\lwipopts.h
+.\objects\inet.o: ..\lwip\src\include\lwip/debug.h
+.\objects\inet.o: ..\lwip\src\include\lwip/arch.h
+.\objects\inet.o: ..\lwip\src\arch/cc.h
+.\objects\inet.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\inet.o: ..\lwip\src\include\lwip/opt.h
+.\objects\inet.o: ..\lwip\src\include\ipv4\lwip/inet.h
+.\objects\inet.o: ..\lwip\src\include\lwip/def.h
+.\objects\inet.o: ..\lwip\src\include\ipv4\lwip/ip_addr.h

@@ -1,0 +1,15 @@
+.\objects\loopif.o: ..\lwip\src\netif\loopif.c
+.\objects\loopif.o: ..\lwip\src\include\lwip/opt.h
+.\objects\loopif.o: ..\lwip\src\arch\lwipopts.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/debug.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/arch.h
+.\objects\loopif.o: ..\lwip\src\arch/cc.h
+.\objects\loopif.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/opt.h
+.\objects\loopif.o: ..\lwip\src\include\netif/loopif.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/netif.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/err.h
+.\objects\loopif.o: ..\lwip\src\include\ipv4\lwip/ip_addr.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/def.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/pbuf.h
+.\objects\loopif.o: ..\lwip\src\include\lwip/snmp.h

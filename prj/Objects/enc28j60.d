@@ -1,0 +1,12 @@
+.\objects\enc28j60.o: ..\lwip\src\arch\ENC28J60.C
+.\objects\enc28j60.o: ..\lwip\src\arch\enc28j60.h
+.\objects\enc28j60.o: ..\stm_lib\inc\STM32F10X_GPIO.h
+.\objects\enc28j60.o: ..\cmsis\stm32f10x.h
+.\objects\enc28j60.o: ..\cmsis\core_cm3.h
+.\objects\enc28j60.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\enc28j60.o: ..\cmsis\system_stm32f10x.h
+.\objects\enc28j60.o: ..\stm_lib\inc\stm32f10x_conf.h
+.\objects\enc28j60.o: ..\stm_lib\inc\stm32f10x_gpio.h
+.\objects\enc28j60.o: ..\stm_lib\inc\stm32f10x_rcc.h
+.\objects\enc28j60.o: ..\cmsis\stm32f10x.h
+.\objects\enc28j60.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
